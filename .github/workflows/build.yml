@@ -71,16 +71,5 @@ jobs:
         name: DisplaySwitcher-${{ github.sha }}
         path: ./artifacts/
         retention-days: 30
-        
-    - name: Upload release assets
-      if: github.event_name == 'release'
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./artifacts/DisplaySwitcher.dmg
-        asset_name: DisplaySwitcher.dmg
-        asset_content_type: application/x-apple-diskimage
 
 
