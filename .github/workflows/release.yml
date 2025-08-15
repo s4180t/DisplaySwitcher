@@ -1,0 +1,109 @@
+name: Release DisplaySwitcher
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Select Xcode version
+      run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+        
+    - name: Build app
+      run: |
+        xcodebuild \
+          -project DisplaySwitcher.xcodeproj \
+          -scheme DisplaySwitcher \
+          -configuration Release \
+          -derivedDataPath ./build \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          build
+          
+    - name: Prepare artifacts
+      run: |
+        mkdir -p ./release-artifacts
+        cp -R ./build/Build/Products/Release/DisplaySwitcher.app ./release-artifacts/
+        
+    - name: Create DMG
+      run: |
+        # Create a temporary DMG directory with nice layout
+        mkdir -p ./dmg-temp
+        cp -R ./release-artifacts/DisplaySwitcher.app ./dmg-temp/
+        
+        # Create Applications symlink for easy installation
+        ln -s /Applications ./dmg-temp/Applications
+        
+        # Create DMG with better settings
+        hdiutil create -volname "DisplaySwitcher" \
+          -srcfolder ./dmg-temp \
+          -ov -format UDZO \
+          -imagekey zlib-level=9 \
+          ./release-artifacts/DisplaySwitcher.dmg
+          
+    - name: Create ZIP archive
+      run: |
+        cd ./release-artifacts
+        zip -r DisplaySwitcher.zip DisplaySwitcher.app
+        
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+        # Extract version info and create release notes
+        cat > release_notes.md << EOF
+        ## DisplaySwitcher $VERSION
+        
+        A minimal macOS utility for switching between built-in and external displays.
+        
+        ### Installation
+        
+        **Option 1: DMG Installer**
+        1. Download \`DisplaySwitcher.dmg\`
+        2. Open the DMG file
+        3. Drag DisplaySwitcher.app to the Applications folder
+        
+        **Option 2: ZIP Archive**
+        1. Download \`DisplaySwitcher.zip\`
+        2. Extract the ZIP file
+        3. Move DisplaySwitcher.app to your Applications folder
+        
+        ### Usage
+        
+        - Run the app to instantly switch your main display
+        - Add to Dock for quick access
+        - Set up keyboard shortcuts in System Preferences
+        - Use with automation tools and scripts
+        
+        ### Requirements
+        
+        - macOS 13.0 or later
+        - Multiple displays connected
+        
+        ---
+        
+        **Full Changelog**: https://github.com/\${{ github.repository }}/compare/v1.0.0...$VERSION
+        EOF
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: DisplaySwitcher ${{ steps.release_notes.outputs.version }}
+        body_path: release_notes.md
+        files: |
+          ./release-artifacts/DisplaySwitcher.dmg
+          ./release-artifacts/DisplaySwitcher.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
